@@ -17,6 +17,9 @@ Unlike standard sentiment analysis, this project implements a **Hybrid Approach*
 
 The result is a comparative dashboard that highlights where traditional models fail against modern transformers in the gaming domain.
 
+### Dashboard Preview
+![Streamlit Dashboard](assets/dashboard.png)
+
 ## Architecture
 
 **ETL Pipeline:**
