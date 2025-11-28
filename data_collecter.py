@@ -23,8 +23,12 @@ GAME_IDS = {
     "Elden Ring": 1245620,
     "Stardew Valley": 413150,
     "Helldivers 2": 553850,
-    "Cyberpunk 2077": 1091500, # Added for variety
-    "Baldur's Gate 3": 1086940 # Added for variety
+    "Cyberpunk 2077": 1091500, 
+    "Baldur's Gate 3": 1086940,
+    "Apex Legends": 1172470,
+    "Counter-Strike 2": 730,
+    "Dota 2": 570,
+    "Red Dead Redemption 2": 1174180
 }
 
 def get_reviews_with_pagination(app_id, target_count=500):

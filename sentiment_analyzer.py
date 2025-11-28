@@ -21,22 +21,12 @@ except Exception as e:
 
 # --- MODEL 1: VADER (Best for Slang) ---
 vader_analyzer = SentimentIntensityAnalyzer()
-
-# Domain Adaptation
-# We inject gaming slang into the lexicon
 new_slang = {
-    "peak": 4.0,      # Extremely Positive
-    "goated": 4.0,    # Greatest of all time
-    "mid": -1.5,      # Mediocre/Bad
-    "trash": -3.5,    # Terrible
-    "garbo": -3.0,    # Garbage
-    "broken": -2.0,   # Negative in gaming context
-    "buggy": -2.5,
-    "unplayable": -4.0
+    "peak": 4.0, "goated": 4.0, "mid": -1.5, "trash": -3.5, 
+    "garbo": -3.0, "broken": -2.0, "buggy": -2.5, "unplayable": -4.0, "goty": 4.0
 }
 vader_analyzer.lexicon.update(new_slang)
-print("✅ VADER lexicon updated with gaming slang.")
-
+print("✅ VADER lexicon updated.")
 
 # --- MODEL 2: RoBERTa (Best for Context) ---
 MODEL = f"cardiffnlp/twitter-roberta-base-sentiment"
@@ -57,7 +47,7 @@ def get_roberta_sentiment(text):
         top_label = labels[ranking[-1]]
         
         return {
-            "label": top_label,
+            "label": top_label, 
             "confidence": float(scores[ranking[-1]])
         }
     except Exception as e:
@@ -66,22 +56,31 @@ def get_roberta_sentiment(text):
 
 def is_actually_english(text):
     """
-    Steam says it's English, but text may still have different language.
-    This checks if the text is actually English.
+    Revised to handle short gaming reviews like 'GG', 'Nice', '10/10'.
     """
+    # 1. Short Review Protection (< 25 chars)
+    # Captures: "Good Game", "Nice", "Peak", "Trash", "10/10"
+    if len(text) <= 25: 
+        return True 
+
     try:
-        # Check if text is long enough to detect
-        if len(text) < 3: 
-            return True # Assume short slang like "GG" is fine
-        return detect(text) == 'en'
+        # 2. Run detection on longer text
+        lang = detect(text)
+        return lang == 'en'
     except LangDetectException:
         return False
 
 def analyze_sentiment():
     print("--- Starting Hybrid Sentiment Analysis ---")
     
-    # Reset analysis for testing? Uncomment next line to re-analyze EVERYTHING
-    reviews_collection.update_many({}, {"$unset": {"roberta_label": "", "vader_score": ""}})
+    # --- RESET PREVIOUSLY SKIPPED REVIEWS ---
+    # This is crucial. We must look for reviews that were marked "skipped" 
+    # but might actually be valid short English reviews.
+    print("Resetting previously 'Skipped' reviews to try again...")
+    reviews_collection.update_many(
+        {"skipped": True}, 
+        {"$unset": {"skipped": "", "reason": ""}}
+    )
 
     # Find reviews that don't have a 'roberta_label' yet
     query = {"roberta_label": {"$exists": False}}
@@ -100,26 +99,27 @@ def analyze_sentiment():
         
         # 1. Cleanliness Check
         if not text.strip() or not is_actually_english(text):
-            # Mark as skipped so we don't process it again
             op = UpdateOne({"_id": review["_id"]}, {"$set": {"skipped": True, "reason": "Not English/Empty"}})
             operations.append(op)
             continue
 
-        # 2. Run VADER (Fast, Good for "PEAK")
+        # 2. Run VADER
         vader_scores = vader_analyzer.polarity_scores(text)
         vader_compound = vader_scores['compound']
         
-        # 3. Run RoBERTa (Slow, Good for Context)
+        # 3. Run RoBERTa
         roberta_result = get_roberta_sentiment(text)
         
         # 4. Save Both
         op = UpdateOne(
             {"_id": review["_id"]},
             {"$set": {
-                "vader_score": vader_compound, # -1 to 1
-                "roberta_label": roberta_result['label'], # Neg/Neu/Pos
+                "vader_score": vader_compound, 
+                "roberta_label": roberta_result['label'], 
                 "roberta_confidence": roberta_result['confidence'],
-                "analyzed_at": "hybrid_v2" # Version control your data!
+                "analyzed_at": "hybrid_v3",
+                # Remove skipped flag if it existed previously
+                "skipped": False 
             }}
         )
         operations.append(op)
